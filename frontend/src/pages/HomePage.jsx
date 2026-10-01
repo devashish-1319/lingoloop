@@ -1,5 +1,5 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo, useState } from "react";
 import {
   getOutgoingFriendReqs,
   getRecommendedUsers,
@@ -7,26 +7,48 @@ import {
   sendFriendRequest,
 } from "../lib/api";
 import { Link } from "react-router";
-import { CheckCircleIcon, MapPinIcon, UserPlusIcon, UsersIcon } from "lucide-react";
+import toast from "react-hot-toast";
+import { CheckCircleIcon, MapPinIcon, SearchIcon, UserPlusIcon, UsersIcon } from "lucide-react";
 
-import { capitialize } from "../lib/utils";
+import { capitalize, getErrorMessage } from "../lib/utils";
+import { LANGUAGES } from "../constants";
+import usePresence from "../hooks/usePresence";
 
-import FriendCard, { getLanguageFlag } from "../components/FriendCard";
+import FriendCard from "../components/FriendCard";
+import LanguageFlag from "../components/LanguageFlag";
 import NoFriendsFound from "../components/NoFriendsFound";
 
 const HomePage = () => {
   const queryClient = useQueryClient();
-  const [outgoingRequestsIds, setOutgoingRequestsIds] = useState(new Set());
+  const [draftFilters, setDraftFilters] = useState({ search: "", language: "", learning: "", location: "" });
+  const [filters, setFilters] = useState(draftFilters);
 
   const { data: friends = [], isLoading: loadingFriends } = useQuery({
     queryKey: ["friends"],
     queryFn: getUserFriends,
   });
 
-  const { data: recommendedUsers = [], isLoading: loadingUsers } = useQuery({
-    queryKey: ["users"],
-    queryFn: getRecommendedUsers,
+  const {
+    data: recommendedPages,
+    isLoading: loadingUsers,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+  } = useInfiniteQuery({
+    queryKey: ["users", filters],
+    queryFn: ({ pageParam }) =>
+      getRecommendedUsers({
+        page: pageParam,
+        // drop empty filters so they aren't sent as ?language=
+        ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value)),
+      }),
+    initialPageParam: 1,
+    getNextPageParam: (last) => (last.page < last.totalPages ? last.page + 1 : undefined),
   });
+  const recommendedUsers = useMemo(
+    () => recommendedPages?.pages.flatMap((page) => page.users) ?? [],
+    [recommendedPages]
+  );
 
   const { data: outgoingFriendReqs } = useQuery({
     queryKey: ["outgoingFriendReqs"],
@@ -35,18 +57,21 @@ const HomePage = () => {
 
   const { mutate: sendRequestMutation, isPending } = useMutation({
     mutationFn: sendFriendRequest,
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["outgoingFriendReqs"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outgoingFriendReqs"] });
+      // a request may have been auto-accepted if the other user had already sent one
+      queryClient.invalidateQueries({ queryKey: ["friends"] });
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (error) => toast.error(getErrorMessage(error, "Could not send request")),
   });
 
-  useEffect(() => {
-    const outgoingIds = new Set();
-    if (outgoingFriendReqs && outgoingFriendReqs.length > 0) {
-      outgoingFriendReqs.forEach((req) => {
-        outgoingIds.add(req.recipient._id);
-      });
-      setOutgoingRequestsIds(outgoingIds);
-    }
-  }, [outgoingFriendReqs]);
+  const onlineFriends = usePresence(useMemo(() => friends.map((f) => f._id), [friends]));
+
+  const outgoingRequestsIds = useMemo(
+    () => new Set((outgoingFriendReqs ?? []).map((req) => req.recipient._id)),
+    [outgoingFriendReqs]
+  );
 
   return (
     <div className="p-4 sm:p-6 lg:p-8">
@@ -68,7 +93,7 @@ const HomePage = () => {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {friends.map((friend) => (
-              <FriendCard key={friend._id} friend={friend} />
+              <FriendCard key={friend._id} friend={friend} online={onlineFriends.has(friend._id)} />
             ))}
           </div>
         )}
@@ -84,6 +109,80 @@ const HomePage = () => {
               </div>
             </div>
           </div>
+
+          <form
+            className="flex flex-wrap items-end gap-3 mb-6"
+            role="search"
+            aria-label="Find language partners"
+            onSubmit={(e) => {
+              e.preventDefault();
+              setFilters(draftFilters);
+            }}
+          >
+            <label className="form-control w-full sm:w-52">
+              <span className="label-text mb-1">Name</span>
+              <input
+                className="input input-bordered input-sm"
+                value={draftFilters.search}
+                onChange={(e) => setDraftFilters({ ...draftFilters, search: e.target.value })}
+                placeholder="Search by name"
+              />
+            </label>
+            <label className="form-control">
+              <span className="label-text mb-1">Speaks</span>
+              <select
+                className="select select-bordered select-sm"
+                value={draftFilters.language}
+                onChange={(e) => setDraftFilters({ ...draftFilters, language: e.target.value })}
+              >
+                <option value="">Any language</option>
+                {LANGUAGES.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-control">
+              <span className="label-text mb-1">Learning</span>
+              <select
+                className="select select-bordered select-sm"
+                value={draftFilters.learning}
+                onChange={(e) => setDraftFilters({ ...draftFilters, learning: e.target.value })}
+              >
+                <option value="">Any language</option>
+                {LANGUAGES.map((lang) => (
+                  <option key={lang} value={lang}>
+                    {lang}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="form-control w-full sm:w-44">
+              <span className="label-text mb-1">Location</span>
+              <input
+                className="input input-bordered input-sm"
+                value={draftFilters.location}
+                onChange={(e) => setDraftFilters({ ...draftFilters, location: e.target.value })}
+                placeholder="City or country"
+              />
+            </label>
+            <button type="submit" className="btn btn-primary btn-sm">
+              <SearchIcon className="size-4" aria-hidden="true" />
+              Search
+            </button>
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              onClick={() => {
+                const empty = { search: "", language: "", learning: "", location: "" };
+                setDraftFilters(empty);
+                setFilters(empty);
+              }}
+            >
+              Clear
+            </button>
+          </form>
 
           {loadingUsers ? (
             <div className="flex justify-center py-12">
@@ -109,7 +208,7 @@ const HomePage = () => {
                     <div className="card-body p-5 space-y-4">
                       <div className="flex items-center gap-3">
                         <div className="avatar size-16 rounded-full">
-                          <img src={user.profilePic} alt={user.fullName} />
+                          <img src={user.profilePic} alt="" />
                         </div>
 
                         <div>
@@ -126,12 +225,12 @@ const HomePage = () => {
                       {/* Languages with flags */}
                       <div className="flex flex-wrap gap-1.5">
                         <span className="badge badge-secondary">
-                          {getLanguageFlag(user.nativeLanguage)}
-                          Native: {capitialize(user.nativeLanguage)}
+                          <LanguageFlag language={user.nativeLanguage} />
+                          Native: {capitalize(user.nativeLanguage)}
                         </span>
                         <span className="badge badge-outline">
-                          {getLanguageFlag(user.learningLanguage)}
-                          Learning: {capitialize(user.learningLanguage)}
+                          <LanguageFlag language={user.learningLanguage} />
+                          Learning: {capitalize(user.learningLanguage)}
                         </span>
                       </div>
 
@@ -161,6 +260,18 @@ const HomePage = () => {
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {hasNextPage && (
+            <div className="flex justify-center mt-8">
+              <button
+                className="btn btn-outline"
+                onClick={() => fetchNextPage()}
+                disabled={isFetchingNextPage}
+              >
+                {isFetchingNextPage ? "Loading..." : "Load more"}
+              </button>
             </div>
           )}
         </section>

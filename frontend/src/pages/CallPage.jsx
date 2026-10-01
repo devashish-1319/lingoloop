@@ -1,8 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
-import { useQuery } from "@tanstack/react-query";
-import { getStreamToken } from "../lib/api";
+import { endPracticeSession, getCallToken, startPracticeSession } from "../lib/api";
 
 import {
   StreamVideo,
@@ -28,50 +27,65 @@ const CallPage = () => {
   const [isConnecting, setIsConnecting] = useState(true);
 
   const { authUser, isLoading } = useAuthUser();
-
-  const { data: tokenData } = useQuery({
-    queryKey: ["streamToken"],
-    queryFn: getStreamToken,
-    enabled: !!authUser,
-  });
+  const authUserId = authUser?._id;
 
   useEffect(() => {
-    const initCall = async () => {
-      if (!tokenData.token || !authUser || !callId) return;
+    if (!authUserId || !callId) return;
 
+    let cancelled = false;
+    let videoClient;
+    let callInstance;
+    let practiceSessionId;
+
+    const initCall = async () => {
       try {
         console.log("Initializing Stream video client...");
 
-        const user = {
-          id: authUser._id,
-          name: authUser.fullName,
-          image: authUser.profilePic,
-        };
-
-        const videoClient = new StreamVideoClient({
+        videoClient = new StreamVideoClient({
           apiKey: STREAM_API_KEY,
-          user,
-          token: tokenData.token,
+          user: { id: authUserId, name: authUser.fullName, image: authUser.profilePic },
+          // the server only issues a token if you are a friend and a participant of this call
+          tokenProvider: async () => (await getCallToken(callId)).token,
         });
 
-        const callInstance = videoClient.call("default", callId);
-
+        callInstance = videoClient.call("default", callId);
         await callInstance.join({ create: true });
 
+        if (cancelled) return; // cleanup below leaves the call
         console.log("Joined call successfully");
+
+        // practice stats: failing to record a session must never break the call
+        startPracticeSession(callId)
+          .then(({ sessionId }) => {
+            practiceSessionId = sessionId;
+            if (cancelled) endPracticeSession(sessionId).catch(() => {});
+          })
+          .catch((error) => console.error("Could not start practice session:", error));
 
         setClient(videoClient);
         setCall(callInstance);
       } catch (error) {
+        if (cancelled) return;
         console.error("Error joining call:", error);
         toast.error("Could not join the call. Please try again.");
       } finally {
-        setIsConnecting(false);
+        if (!cancelled) setIsConnecting(false);
       }
     };
 
     initCall();
-  }, [tokenData, authUser, callId]);
+
+    return () => {
+      cancelled = true;
+      setClient(null);
+      setCall(null);
+      // leave the call and drop the websocket so nothing leaks when navigating away
+      if (practiceSessionId) endPracticeSession(practiceSessionId).catch(() => {});
+      callInstance?.leave().catch(() => {});
+      videoClient?.disconnectUser().catch(() => {});
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- re-join only when the user or call changes
+  }, [authUserId, callId]);
 
   if (isLoading || isConnecting) return <PageLoader />;
 
@@ -100,7 +114,11 @@ const CallContent = () => {
 
   const navigate = useNavigate();
 
-  if (callingState === CallingState.LEFT) return navigate("/");
+  useEffect(() => {
+    if (callingState === CallingState.LEFT) navigate("/");
+  }, [callingState, navigate]);
+
+  if (callingState === CallingState.LEFT) return null;
 
   return (
     <StreamTheme>

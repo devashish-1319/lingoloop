@@ -5,6 +5,7 @@ import toast from "react-hot-toast";
 import { completeOnboarding } from "../lib/api";
 import { LoaderIcon, MapPinIcon, ShipWheelIcon, ShuffleIcon } from "lucide-react";
 import { LANGUAGES } from "../constants";
+import { getErrorMessage } from "../lib/utils";
 
 const OnboardingPage = () => {
   const { authUser } = useAuthUser();
@@ -27,7 +28,7 @@ const OnboardingPage = () => {
     },
 
     onError: (error) => {
-      toast.error(error.response.data.message);
+      toast.error(getErrorMessage(error));
     },
   });
 

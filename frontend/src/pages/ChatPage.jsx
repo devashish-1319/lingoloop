@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { useParams } from "react-router";
+import { useNavigate, useParams } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
-import { useQuery } from "@tanstack/react-query";
-import { getStreamToken } from "../lib/api";
+import { useChat } from "../context/ChatContext";
+import { createChatChannel, ringFriend } from "../lib/api";
 
 import {
   Channel,
@@ -13,93 +13,83 @@ import {
   Thread,
   Window,
 } from "stream-chat-react";
-import { StreamChat } from "stream-chat";
 import toast from "react-hot-toast";
+import { SparklesIcon } from "lucide-react";
 
 import ChatLoader from "../components/ChatLoader";
 import CallButton from "../components/CallButton";
-
-const STREAM_API_KEY = import.meta.env.VITE_STREAM_API_KEY;
+import ChatTools from "../components/ChatTools";
 
 const ChatPage = () => {
   const { id: targetUserId } = useParams();
+  const navigate = useNavigate();
 
-  const [chatClient, setChatClient] = useState(null);
   const [channel, setChannel] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [showTools, setShowTools] = useState(false);
 
   const { authUser } = useAuthUser();
-
-  const { data: tokenData } = useQuery({
-    queryKey: ["streamToken"],
-    queryFn: getStreamToken,
-    enabled: !!authUser, // this will run only when authUser is available
-  });
+  const { client: chatClient } = useChat(); // shared connection, owned by the layout
 
   useEffect(() => {
-    const initChat = async () => {
-      if (!tokenData?.token || !authUser) return;
+    if (!chatClient) return;
 
+    let cancelled = false;
+    setChannel(null);
+
+    const openChannel = async () => {
       try {
-        console.log("Initializing stream chat client...");
+        // the server verifies friendship and creates the channel (sorted ids, same for both users)
+        const { channelId } = await createChatChannel(targetUserId);
+        const currChannel = chatClient.channel("messaging", channelId);
+        await currChannel.watch({ presence: true });
 
-        const client = StreamChat.getInstance(STREAM_API_KEY);
-
-        await client.connectUser(
-          {
-            id: authUser._id,
-            name: authUser.fullName,
-            image: authUser.profilePic,
-          },
-          tokenData.token
-        );
-
-        //
-        const channelId = [authUser._id, targetUserId].sort().join("-");
-
-        // you and me
-        // if i start the chat => channelId: [myId, yourId]
-        // if you start the chat => channelId: [yourId, myId]  => [myId,yourId]
-
-        const currChannel = client.channel("messaging", channelId, {
-          members: [authUser._id, targetUserId],
-        });
-
-        await currChannel.watch();
-
-        setChatClient(client);
-        setChannel(currChannel);
+        if (!cancelled) setChannel(currChannel);
       } catch (error) {
-        console.error("Error initializing chat:", error);
-        toast.error("Could not connect to chat. Please try again.");
-      } finally {
-        setLoading(false);
+        if (cancelled) return;
+        console.error("Error opening chat:", error);
+        toast.error("Could not open this chat. Are you still friends?");
+        navigate("/friends", { replace: true });
       }
     };
 
-    initChat();
-  }, [tokenData, authUser, targetUserId]);
+    openChannel();
+    return () => {
+      cancelled = true;
+    };
+  }, [chatClient, targetUserId, navigate]);
 
-  const handleVideoCall = () => {
-    if (channel) {
-      const callUrl = `${window.location.origin}/call/${channel.id}`;
+  const handleVideoCall = async () => {
+    if (!channel) return;
 
-      channel.sendMessage({
-        text: `I've started a video call. Join me here: ${callUrl}`,
-      });
+    const callUrl = `${window.location.origin}/call/${channel.id}`;
+    channel.sendMessage({ text: `I've started a video call. Join me here: ${callUrl}` });
 
-      toast.success("Video call link sent successfully!");
+    // ring the friend if they have the app open, then join the call ourselves
+    try {
+      await ringFriend(targetUserId);
+    } catch (error) {
+      console.error("Could not ring friend:", error);
     }
+    navigate(`/call/${channel.id}`);
   };
 
-  if (loading || !chatClient || !channel) return <ChatLoader />;
+  if (!chatClient || !channel) return <ChatLoader />;
 
   return (
     <div className="h-[93vh]">
       <Chat client={chatClient}>
         <Channel channel={channel}>
           <div className="w-full relative">
-            <CallButton handleVideoCall={handleVideoCall} />
+            <CallButton handleVideoCall={handleVideoCall}>
+              <button
+                className={`btn btn-sm ${showTools ? "btn-primary" : "btn-ghost"}`}
+                onClick={() => setShowTools((v) => !v)}
+                aria-pressed={showTools}
+                aria-label="Learning tools"
+              >
+                <SparklesIcon className="size-5" aria-hidden="true" />
+              </button>
+            </CallButton>
             <Window>
               <ChannelHeader />
               <MessageList />
@@ -107,6 +97,7 @@ const ChatPage = () => {
             </Window>
           </div>
           <Thread />
+          {showTools && <ChatTools channel={channel} friendId={targetUserId} myId={authUser._id} />}
         </Channel>
       </Chat>
     </div>
