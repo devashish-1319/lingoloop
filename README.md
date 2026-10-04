@@ -1,4 +1,4 @@
-# Video Chat Social App
+# Lingoloop
 
 A language-exchange app: sign up, say which language you speak and which you're learning, get matched with
 partners, add friends, then chat and video call.

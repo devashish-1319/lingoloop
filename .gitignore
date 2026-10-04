@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .env
+
+# personal interview-prep notes (not part of the project)
+PROJECT_INTERVIEW_GUIDE.html

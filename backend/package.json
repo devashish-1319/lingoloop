@@ -11,7 +11,7 @@
   "author": "",
   "type": "module",
   "license": "ISC",
-  "description": "Express API for the video chat social app",
+  "description": "Express API for Lingoloop",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
     "bcryptjs": "^3.0.2",
