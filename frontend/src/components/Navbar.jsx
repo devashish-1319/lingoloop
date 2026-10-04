@@ -5,6 +5,7 @@ import useNotificationCount from "../hooks/useNotificationCount";
 import CountBadge from "./CountBadge";
 import ThemeSelector from "./ThemeSelector";
 import useLogout from "../hooks/useLogout";
+import Avatar from "./Avatar";
 
 const Navbar = () => {
   const { authUser } = useAuthUser();
@@ -58,7 +59,7 @@ const Navbar = () => {
 
           <div className="avatar">
             <div className="w-9 rounded-full">
-              <img src={authUser?.profilePic} alt="" />
+              <Avatar src={authUser?.profilePic} name={authUser?.fullName} />
             </div>
           </div>
 

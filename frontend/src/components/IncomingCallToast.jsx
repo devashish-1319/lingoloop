@@ -1,4 +1,5 @@
 import { PhoneIcon, PhoneOffIcon } from "lucide-react";
+import Avatar from "./Avatar";
 
 const IncomingCallToast = ({ toast, from, onJoin, onDecline }) => (
   <div
@@ -10,7 +11,7 @@ const IncomingCallToast = ({ toast, from, onJoin, onDecline }) => (
     <div className="card-body p-4 flex-row items-center gap-3">
       <div className="avatar">
         <div className="w-12 rounded-full">
-          <img src={from.profilePic} alt="" />
+          <Avatar src={from.profilePic} name={from.fullName} />
         </div>
       </div>
       <div className="flex-1 min-w-0">

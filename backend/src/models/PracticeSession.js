@@ -7,6 +7,7 @@ const practiceSessionSchema = new mongoose.Schema(
     partner: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
     callId: { type: String, required: true },
     startedAt: { type: Date, default: Date.now },
+    lastSeenAt: { type: Date, default: Date.now }, // heartbeat, used to close sessions that were never ended
     endedAt: { type: Date },
     durationSec: { type: Number, default: 0 },
   },

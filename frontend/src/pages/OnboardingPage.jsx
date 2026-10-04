@@ -6,6 +6,8 @@ import { completeOnboarding } from "../lib/api";
 import { LoaderIcon, MapPinIcon, ShipWheelIcon, ShuffleIcon } from "lucide-react";
 import { LANGUAGES } from "../constants";
 import { getErrorMessage } from "../lib/utils";
+import Avatar from "../components/Avatar";
+import { randomAvatarUrl } from "../lib/avatar";
 
 const OnboardingPage = () => {
   const { authUser } = useAuthUser();
@@ -39,10 +41,7 @@ const OnboardingPage = () => {
   };
 
   const handleRandomAvatar = () => {
-    const idx = Math.floor(Math.random() * 100) + 1; // 1-100 included
-    const randomAvatar = `https://avatar.iran.liara.run/public/${idx}.png`;
-
-    setFormState({ ...formState, profilePic: randomAvatar });
+    setFormState({ ...formState, profilePic: randomAvatarUrl() });
     toast.success("Random profile picture generated!");
   };
 
@@ -58,8 +57,9 @@ const OnboardingPage = () => {
               {/* IMAGE PREVIEW */}
               <div className="size-32 rounded-full bg-base-300 overflow-hidden">
                 {formState.profilePic ? (
-                  <img
+                  <Avatar
                     src={formState.profilePic}
+                    name={formState.fullName}
                     alt="Profile Preview"
                     className="w-full h-full object-cover"
                   />

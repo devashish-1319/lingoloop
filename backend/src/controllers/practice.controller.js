@@ -19,6 +19,12 @@ export const endSession = asyncHandler(async (req, res) => {
   res.status(200).json({ durationSec: session.durationSec });
 });
 
+export const pingSession = asyncHandler(async (req, res) => {
+  if (!mongoose.isValidObjectId(req.params.id)) throw new ApiError(400, "Invalid session id");
+  await practice.pingSession(req.user, req.params.id);
+  res.status(200).json({ ok: true });
+});
+
 export const getStats = asyncHandler(async (req, res) => {
   res.status(200).json(await practice.getStats(req.user));
 });

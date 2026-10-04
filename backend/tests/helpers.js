@@ -25,6 +25,12 @@ vi.mock("@anthropic-ai/sdk", () => {
   return { default: Anthropic };
 });
 
+// ...and never call Stream's video REST API (local requests still go through the real fetch)
+export const streamVideoFetch = vi.fn(async () => new Response("{}", { status: 200 }));
+const realFetch = globalThis.fetch;
+globalThis.fetch = (url, init) =>
+  String(url).includes("stream-io-api.com") ? streamVideoFetch(url, init) : realFetch(url, init);
+
 process.env.NODE_ENV = "test";
 process.env.ANTHROPIC_API_KEY = "test-anthropic-key";
 process.env.JWT_SECRET_KEY = "test-jwt-secret";

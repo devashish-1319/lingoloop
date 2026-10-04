@@ -6,6 +6,8 @@ import useAuthUser from "../hooks/useAuthUser";
 import { changePassword, getBlockedUsers, unblockUser, updateProfile } from "../lib/api";
 import { getErrorMessage } from "../lib/utils";
 import { LANGUAGES } from "../constants";
+import Avatar from "../components/Avatar";
+import { randomAvatarUrl } from "../lib/avatar";
 
 const ProfileForm = ({ authUser }) => {
   const queryClient = useQueryClient();
@@ -29,10 +31,7 @@ const ProfileForm = ({ authUser }) => {
     onError: (error) => toast.error(getErrorMessage(error)),
   });
 
-  const randomAvatar = () => {
-    const idx = Math.floor(Math.random() * 100) + 1;
-    setForm({ ...form, profilePic: `https://avatar.iran.liara.run/public/${idx}.png` });
-  };
+  const randomAvatar = () => setForm({ ...form, profilePic: randomAvatarUrl() });
 
   return (
     <form
@@ -47,7 +46,7 @@ const ProfileForm = ({ authUser }) => {
       <div className="flex items-center gap-4">
         <div className="avatar">
           <div className="size-20 rounded-full bg-base-300">
-            {form.profilePic && <img src={form.profilePic} alt="Profile preview" />}
+            <Avatar src={form.profilePic} name={form.fullName} alt="Profile preview" />
           </div>
         </div>
         <button type="button" className="btn btn-accent btn-sm" onClick={randomAvatar}>
@@ -174,7 +173,7 @@ const BlockedUsers = () => {
             <li key={user._id} className="flex items-center gap-3">
               <div className="avatar">
                 <div className="size-9 rounded-full">
-                  <img src={user.profilePic} alt="" />
+                  <Avatar src={user.profilePic} name={user.fullName} />
                 </div>
               </div>
               <span className="flex-1">{user.fullName}</span>

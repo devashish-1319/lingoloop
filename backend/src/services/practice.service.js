@@ -2,9 +2,43 @@ import PracticeSession from "../models/PracticeSession.js";
 import { ApiError } from "../utils/ApiError.js";
 
 const MAX_SESSION_SEC = 4 * 60 * 60; // guards against a session that was never closed
+const ABANDONED_AFTER_MS = 90 * 1000; // no heartbeat for this long = the tab was closed / the browser crashed
 
 export function startSession(me, callId, partnerId) {
   return PracticeSession.create({ user: me._id, partner: partnerId, callId });
+}
+
+// heartbeat from the call page; lets us close the session at the last known moment if the tab is killed
+export async function pingSession(me, sessionId) {
+  const session = await PracticeSession.findOneAndUpdate(
+    { _id: sessionId, user: me._id, endedAt: { $exists: false } },
+    { lastSeenAt: new Date() }
+  );
+  if (!session) throw new ApiError(404, "Session not found");
+}
+
+// sessions whose heartbeat stopped are ended at their last heartbeat
+async function closeAbandonedSessions(userId) {
+  await PracticeSession.updateMany(
+    {
+      user: userId,
+      endedAt: { $exists: false },
+      lastSeenAt: { $lt: new Date(Date.now() - ABANDONED_AFTER_MS) },
+    },
+    [
+      {
+        $set: {
+          endedAt: "$lastSeenAt",
+          durationSec: {
+            $min: [
+              MAX_SESSION_SEC,
+              { $round: [{ $divide: [{ $subtract: ["$lastSeenAt", "$startedAt"] }, 1000] }, 0] },
+            ],
+          },
+        },
+      },
+    ]
+  );
 }
 
 export async function endSession(me, sessionId) {
@@ -24,6 +58,7 @@ export async function endSession(me, sessionId) {
 const dayKey = (date) => date.toISOString().slice(0, 10); // UTC day
 
 export async function getStats(me) {
+  await closeAbandonedSessions(me._id);
   const sessions = await PracticeSession.find({ user: me._id, endedAt: { $exists: true } })
     .sort({ endedAt: -1 })
     .populate("partner", "fullName profilePic");

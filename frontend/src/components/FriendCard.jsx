@@ -1,5 +1,6 @@
 import { Link } from "react-router";
 import LanguageFlag from "./LanguageFlag";
+import Avatar from "./Avatar";
 
 const FriendCard = ({ friend, online = false, actions }) => {
   return (
@@ -9,7 +10,7 @@ const FriendCard = ({ friend, online = false, actions }) => {
         <div className="flex items-center gap-3 mb-3">
           <div className={`avatar ${online ? "online" : "offline"}`}>
             <div className="size-12 rounded-full">
-              <img src={friend.profilePic} alt="" />
+              <Avatar src={friend.profilePic} name={friend.fullName} />
             </div>
           </div>
           <div className="min-w-0">

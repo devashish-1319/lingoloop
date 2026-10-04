@@ -3,7 +3,7 @@ import { assertCallParticipant, assertFriend, buildChannelId } from "../services
 import { emitToUser } from "../services/realtime.service.js";
 import {
   createDirectChannel,
-  generateCallToken,
+  createFriendCall,
   generateStreamToken,
   upsertStreamUser,
 } from "../lib/stream.js";
@@ -37,11 +37,20 @@ export const createChannel = asyncHandler(async (req, res) => {
   res.status(200).json({ channelId });
 });
 
+// Makes sure the call exists on Stream with exactly the two friends as members, then returns a token.
+// Only members can read or join a call of this type, so the token alone grants nothing for other calls.
 export const getCallToken = asyncHandler(async (req, res) => {
   const { callId } = req.params;
-  assertCallParticipant(req.user, callId);
+  const friendId = assertCallParticipant(req.user, callId);
 
-  res.status(200).json({ token: generateCallToken(req.user.id, callId) });
+  try {
+    await createFriendCall(callId, [req.user.id, friendId], req.user.id);
+  } catch (error) {
+    logger.error({ err: error }, "Error creating Stream call");
+    throw new ApiError(502, "Video service unavailable, please try again");
+  }
+
+  res.status(200).json({ token: generateStreamToken(req.user.id) });
 });
 
 // rings a friend who currently has the app open (delivered over the SSE connection)

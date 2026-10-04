@@ -1,4 +1,4 @@
-import { axiosInstance } from "./axios";
+import { axiosInstance, BASE_URL } from "./axios";
 
 export const signup = async (signupData) => {
   const response = await axiosInstance.post("/auth/signup", signupData);
@@ -146,6 +146,20 @@ export async function startPracticeSession(callId) {
 export async function endPracticeSession(sessionId) {
   const response = await axiosInstance.put(`/practice/${sessionId}/end`);
   return response.data;
+}
+
+export async function pingPracticeSession(sessionId) {
+  const response = await axiosInstance.put(`/practice/${sessionId}/ping`);
+  return response.data;
+}
+
+// used when the page is being closed/reloaded: keepalive lets the request outlive the page
+export function endPracticeSessionOnUnload(sessionId) {
+  fetch(`${BASE_URL}/practice/${sessionId}/end`, {
+    method: "PUT",
+    credentials: "include",
+    keepalive: true,
+  }).catch(() => {});
 }
 
 export async function getPracticeStats() {

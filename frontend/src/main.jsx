@@ -22,9 +22,12 @@ createRoot(document.getElementById("root")).render(
   </StrictMode>
 );
 
-// PWA: only register in production builds (a service worker would make dev reloads confusing)
-if ("serviceWorker" in navigator && import.meta.env.PROD) {
-  window.addEventListener("load", () => {
-    navigator.serviceWorker.register("/sw.js").catch((error) => console.error("SW registration failed:", error));
-  });
+// The app is installable through its web manifest. It deliberately has no service worker: a fetch handler
+// made the browser drop the "end practice session" request fired while a page unloads, and an offline shell is
+// of little use for a real-time chat app. This also removes a worker registered by an earlier build.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker
+    .getRegistrations()
+    .then((registrations) => registrations.forEach((registration) => registration.unregister()))
+    .catch(() => {});
 }

@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
-import { endPracticeSession, getCallToken, startPracticeSession } from "../lib/api";
+import {
+  endPracticeSession,
+  endPracticeSessionOnUnload,
+  getCallToken,
+  pingPracticeSession,
+  startPracticeSession,
+} from "../lib/api";
 
 import {
   StreamVideo,
@@ -36,6 +42,9 @@ const CallPage = () => {
     let videoClient;
     let callInstance;
     let practiceSessionId;
+    let heartbeat;
+    const endOnUnload = () => practiceSessionId && endPracticeSessionOnUnload(practiceSessionId);
+    window.addEventListener("pagehide", endOnUnload);
 
     const initCall = async () => {
       try {
@@ -48,8 +57,10 @@ const CallPage = () => {
           tokenProvider: async () => (await getCallToken(callId)).token,
         });
 
-        callInstance = videoClient.call("default", callId);
-        await callInstance.join({ create: true });
+        // the server already created this call with the two friends as members (see getCallToken),
+        // so we only join: users are not allowed to create calls of this type
+        callInstance = videoClient.call("friend_call", callId);
+        await callInstance.join();
 
         if (cancelled) return; // cleanup below leaves the call
         console.log("Joined call successfully");
@@ -58,7 +69,9 @@ const CallPage = () => {
         startPracticeSession(callId)
           .then(({ sessionId }) => {
             practiceSessionId = sessionId;
-            if (cancelled) endPracticeSession(sessionId).catch(() => {});
+            if (cancelled) return endPracticeSession(sessionId).catch(() => {});
+            // heartbeat: if the tab dies without a clean exit the server ends the session at the last ping
+            heartbeat = setInterval(() => pingPracticeSession(sessionId).catch(() => {}), 30000);
           })
           .catch((error) => console.error("Could not start practice session:", error));
 
@@ -77,6 +90,8 @@ const CallPage = () => {
 
     return () => {
       cancelled = true;
+      clearInterval(heartbeat);
+      window.removeEventListener("pagehide", endOnUnload);
       setClient(null);
       setCall(null);
       // leave the call and drop the websocket so nothing leaks when navigating away

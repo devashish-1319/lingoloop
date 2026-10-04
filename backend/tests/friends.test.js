@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import jwt from "jsonwebtoken";
-import { clearDb, onboardingBody, setupApp, signupAgent, teardownApp } from "./helpers.js";
+import { clearDb, makeFriends, onboardingBody, setupApp, signupAgent, streamVideoFetch, teardownApp } from "./helpers.js";
 
 let app;
 beforeAll(async () => {
@@ -99,35 +99,65 @@ describe("recommended users", () => {
 });
 
 describe("chat / call authorization", () => {
-  it("only issues call tokens to friends who are call participants", async () => {
+  it("only prepares a call for friends who are call participants", async () => {
     const a = await makeOnboarded();
     const b = await makeOnboarded();
     const c = await makeOnboarded();
     const callId = [a.user._id, b.user._id].sort().join("-");
 
-    // not friends yet
+    // not friends yet: nothing is created on Stream
+    streamVideoFetch.mockClear();
     expect((await a.agent.get(`/api/chat/call-token/${callId}`)).status).toBe(403);
+    expect(streamVideoFetch).not.toHaveBeenCalled();
 
     const req = await a.agent.post(`/api/users/friend-request/${b.user._id}`);
     await b.agent.put(`/api/users/friend-request/${req.body._id}/accept`);
 
     const ok = await a.agent.get(`/api/chat/call-token/${callId}`);
     expect(ok.status).toBe(200);
-    expect(jwt.decode(ok.body.token)).toMatchObject({
-      user_id: a.user._id,
-      call_cids: [`default:${callId}`],
-    });
+    expect(jwt.decode(ok.body.token).user_id).toBe(a.user._id);
 
-    // a third user can't get a token for someone else's call
+    // the server created the call on Stream with exactly the two friends as members
+    const create = streamVideoFetch.mock.calls.find(([url]) => url.includes(`/call/friend_call/${callId}?`));
+    const body = JSON.parse(create[1].body);
+    expect(body.data.members.map((m) => m.user_id).sort()).toEqual([a.user._id, b.user._id].sort());
+
+    // a third user can't get anything for someone else's call
     expect((await c.agent.get(`/api/chat/call-token/${callId}`)).status).toBe(403);
   });
 
-  it("chat tokens are not valid for any video call, and channels need friendship", async () => {
+  it("answers 502 when Stream's video API is down", async () => {
+    const a = await makeOnboarded();
+    const b = await makeOnboarded();
+    await makeFriends(a, b);
+    const callId = [a.user._id, b.user._id].sort().join("-");
+
+    streamVideoFetch.mockResolvedValue(new Response("boom", { status: 500 }));
+    try {
+      expect((await a.agent.get(`/api/chat/call-token/${callId}`)).status).toBe(502);
+    } finally {
+      streamVideoFetch.mockImplementation(async () => new Response("{}", { status: 200 }));
+    }
+  });
+
+  it("revokes call membership when a friendship ends", async () => {
+    const a = await makeOnboarded();
+    const b = await makeOnboarded();
+    await makeFriends(a, b);
+    const callId = [a.user._id, b.user._id].sort().join("-");
+
+    streamVideoFetch.mockClear();
+    await a.agent.delete(`/api/users/friends/${b.user._id}`);
+    const revoke = streamVideoFetch.mock.calls.find(([url]) => url.includes(`/call/friend_call/${callId}/members`));
+    expect(JSON.parse(revoke[1].body).remove_members.sort()).toEqual([a.user._id, b.user._id].sort());
+  });
+
+  it("issues a plain chat token, and channels need friendship", async () => {
     const a = await makeOnboarded();
     const b = await makeOnboarded();
 
     const { token } = (await a.agent.get("/api/chat/token")).body;
-    expect(jwt.decode(token).call_cids).toEqual(["default:none"]);
+    expect(jwt.decode(token)).toMatchObject({ user_id: a.user._id });
 
     expect((await a.agent.post(`/api/chat/channel/${b.user._id}`)).status).toBe(403);
   });

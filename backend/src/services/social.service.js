@@ -5,6 +5,8 @@ import Report from "../models/Report.js";
 import { ApiError } from "../utils/ApiError.js";
 import { emitToUser } from "./realtime.service.js";
 import { isFriend } from "./friend.service.js";
+import { buildChannelId } from "./call.service.js";
+import { revokeCallAccess } from "../lib/stream.js";
 
 const between = (a, b) => ({
   $or: [
@@ -21,6 +23,7 @@ async function severFriendship(myId, otherId) {
     FriendRequest.deleteMany(between(myId, otherId)),
   ]);
   emitToUser(otherId, "friend-removed", { userId: myId });
+  await revokeCallAccess(buildChannelId(myId, otherId), [myId.toString(), otherId.toString()]);
 }
 
 async function getOtherUser(me, otherId) {

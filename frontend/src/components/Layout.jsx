@@ -1,6 +1,7 @@
 import { Outlet, useLocation } from "react-router";
 import Sidebar from "./Sidebar";
 import Navbar from "./Navbar";
+import MobileNav from "./MobileNav";
 import { ChatProvider } from "../context/ChatContext";
 import useRealtime from "../hooks/useRealtime";
 
@@ -20,11 +21,13 @@ const Layout = () => {
           <div className="flex-1 flex flex-col min-w-0">
             <Navbar />
 
-            <main className="flex-1 overflow-y-auto">
+            {/* extra bottom padding keeps content clear of the fixed mobile nav */}
+            <main className={`flex-1 overflow-y-auto ${showSidebar ? "pb-16 lg:pb-0" : ""}`}>
               <Outlet />
             </main>
           </div>
         </div>
+        {showSidebar && <MobileNav />}
       </div>
     </ChatProvider>
   );

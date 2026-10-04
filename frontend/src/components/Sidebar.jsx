@@ -1,38 +1,16 @@
 import { createElement } from "react";
 import { Link, useLocation } from "react-router";
 import useAuthUser from "../hooks/useAuthUser";
-import useNotificationCount from "../hooks/useNotificationCount";
-import { useChat } from "../context/ChatContext";
+import useNavLinks from "../hooks/useNavLinks";
 import CountBadge from "./CountBadge";
-import {
-  BarChart3Icon,
-  BellIcon,
-  HomeIcon,
-  SettingsIcon,
-  ShipWheelIcon,
-  UsersIcon,
-} from "lucide-react";
+import { ShipWheelIcon } from "lucide-react";
+import Avatar from "./Avatar";
 
 const Sidebar = () => {
   const { authUser } = useAuthUser();
   const location = useLocation();
   const currentPath = location.pathname;
-  const notificationCount = useNotificationCount();
-  const { unreadCount } = useChat();
-
-  const links = [
-    { to: "/", label: "Home", Icon: HomeIcon },
-    { to: "/friends", label: "Friends", Icon: UsersIcon, badge: unreadCount, badgeLabel: "unread messages" },
-    {
-      to: "/notifications",
-      label: "Notifications",
-      Icon: BellIcon,
-      badge: notificationCount,
-      badgeLabel: "pending friend requests",
-    },
-    { to: "/progress", label: "Progress", Icon: BarChart3Icon },
-    { to: "/settings", label: "Settings", Icon: SettingsIcon },
-  ];
+  const links = useNavLinks();
 
   return (
     <aside className="w-64 bg-base-200 border-r border-base-300 hidden lg:flex flex-col h-screen sticky top-0">
@@ -70,7 +48,7 @@ const Sidebar = () => {
         <div className="flex items-center gap-3">
           <div className="avatar">
             <div className="w-10 rounded-full">
-              <img src={authUser?.profilePic} alt="" />
+              <Avatar src={authUser?.profilePic} name={authUser?.fullName} />
             </div>
           </div>
           <div className="flex-1">

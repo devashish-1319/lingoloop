@@ -23,12 +23,13 @@ export const signup = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Email already exists, please use a diffrent one");
   }
 
-  const idx = Math.floor(Math.random() * 100) + 1; // generate a num between 1-100
+  const seed = Math.random().toString(36).slice(2, 12);
   const newUser = await User.create({
     email,
     fullName,
     password,
-    profilePic: `https://avatar.iran.liara.run/public/${idx}.png`,
+    // avatar.iran.liara.run (used before) went offline
+    profilePic: `https://api.dicebear.com/9.x/avataaars/png?size=256&seed=${seed}`,
   });
 
   await trySyncStreamUser(newUser);

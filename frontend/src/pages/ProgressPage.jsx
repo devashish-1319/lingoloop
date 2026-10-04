@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ClockIcon, FlameIcon, VideoIcon } from "lucide-react";
 import { getPracticeStats } from "../lib/api";
+import Avatar from "../components/Avatar";
 
 const Stat = ({ icon, label, value }) => (
   <div className="stat bg-base-200 rounded-box">
@@ -75,7 +76,7 @@ const ProgressPage = () => {
                   <li key={partner._id} className="flex items-center gap-3">
                     <div className="avatar">
                       <div className="size-9 rounded-full">
-                        <img src={partner.profilePic} alt="" />
+                        <Avatar src={partner.profilePic} name={partner.fullName} />
                       </div>
                     </div>
                     <span className="flex-1">{partner.fullName}</span>

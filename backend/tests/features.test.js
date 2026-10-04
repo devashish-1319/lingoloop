@@ -10,6 +10,7 @@ import {
   teardownApp,
 } from "./helpers.js";
 import { emitToUser, isOnline, subscribe } from "../src/services/realtime.service.js";
+import PracticeSession from "../src/models/PracticeSession.js";
 
 let app;
 beforeAll(async () => {
@@ -241,5 +242,31 @@ describe("practice sessions", () => {
     expect(stats.streakDays).toBe(1);
     expect(stats.last7Days).toHaveLength(7);
     expect(stats.topPartners[0].partner._id).toBe(b.user._id);
+  });
+
+  it("counts a session whose tab was closed, ending it at the last heartbeat", async () => {
+    const a = await makeOnboarded();
+    const b = await makeOnboarded();
+    await makeFriends(a, b);
+    const callId = [a.user._id, b.user._id].sort().join("-");
+
+    const { body: { sessionId } } = await a.agent.post("/api/practice").send({ callId });
+    expect((await a.agent.put(`/api/practice/${sessionId}/ping`)).status).toBe(200);
+
+    // simulate: started 10 minutes ago, last heartbeat 5 minutes ago, never ended
+    const now = Date.now();
+    await PracticeSession.updateOne(
+      { _id: sessionId },
+      { startedAt: new Date(now - 10 * 60000), lastSeenAt: new Date(now - 5 * 60000) }
+    );
+
+    const stats = (await a.agent.get("/api/practice/stats")).body;
+    expect(stats.totalSessions).toBe(1);
+    expect(stats.totalMinutes).toBe(5);
+
+    // a session with a fresh heartbeat is still running and not counted yet
+    const second = await a.agent.post("/api/practice").send({ callId });
+    await a.agent.put(`/api/practice/${second.body.sessionId}/ping`);
+    expect((await a.agent.get("/api/practice/stats")).body.totalSessions).toBe(1);
   });
 });

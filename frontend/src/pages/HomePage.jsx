@@ -17,6 +17,7 @@ import usePresence from "../hooks/usePresence";
 import FriendCard from "../components/FriendCard";
 import LanguageFlag from "../components/LanguageFlag";
 import NoFriendsFound from "../components/NoFriendsFound";
+import Avatar from "../components/Avatar";
 
 const HomePage = () => {
   const queryClient = useQueryClient();
@@ -208,7 +209,7 @@ const HomePage = () => {
                     <div className="card-body p-5 space-y-4">
                       <div className="flex items-center gap-3">
                         <div className="avatar size-16 rounded-full">
-                          <img src={user.profilePic} alt="" />
+                          <Avatar src={user.profilePic} name={user.fullName} />
                         </div>
 
                         <div>

@@ -35,15 +35,20 @@ frontend/src
   pages/ components/ hooks/ lib/ store/
 ```
 
+Avatars come from DiceBear (the old avatar.iran.liara.run service went offline); a missing or broken picture falls back to initials.
+
 Features: language-based matching with search and filters, friends (unfriend / block / report), live friend-request
 notifications, online presence and unread badges, incoming-call ringing, practice stats, profile and password settings,
-AI translation and conversation topics, installable PWA.
+AI translation and conversation topics, installable (web app manifest).
 
 Key behaviours:
 
 - **Auth:** httpOnly `jwt` cookie (7 days). Password hashes are stripped from every JSON response.
-- **Chat / calls:** a channel or call is `"<idA>-<idB>"` (sorted user ids). The server only creates channels and issues call
-  tokens for friends; call tokens are scoped to that single call.
+- **Chat / calls:** a channel or call is `"<idA>-<idB>"` (sorted user ids). The server only creates channels and calls for
+  friends. Calls use a custom Stream call type (`friend_call`, created automatically on first use) where only the two
+  members can read or join and plain users cannot create calls, so a valid Stream token alone grants no access to anyone
+  else's call. Unfriending or blocking revokes call membership. (Stream does not enforce the `call_cids` token claim,
+  which is why this is done with call-type permissions instead.)
 - **Friends:** a request becomes a friendship on accept (or auto-accepts if the other user already asked); recipients can
   decline and senders can cancel.
 - **Recommendations:** `GET /api/users?page=&limit=&language=` ranks users who speak your target language and are learning yours first.
